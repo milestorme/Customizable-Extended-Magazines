@@ -1,0 +1,67 @@
+{
+  "Settings": {
+    "Enable Loot Container Spawns": true
+  },
+  "Magazine settings": {
+    "2892143123": {
+      "Magazine Display Name": "Extended Magazine 15%",
+      "Ammo Multiplier 1.0 = default Gun": 1.5,
+      "Can Spawn In LootContainer types": [
+        "crate_basic",
+        "codelockedhackablecrate",
+        "codelockedhackablecrate_oilrig",
+        "crate_elite",
+        "supply_drop",
+        "crate_tools",
+        "crate_normal",
+        "crate_normal_2"
+      ],
+      "LootContainer Spawn Chance 1-100": 50.0
+    },
+    "2892142979": {
+      "Magazine Display Name": "Extended Magazine 30%",
+      "Ammo Multiplier 1.0 = default Gun": 1.75,
+      "Can Spawn In LootContainer types": [
+        "crate_basic",
+        "codelockedhackablecrate",
+        "codelockedhackablecrate_oilrig",
+        "crate_elite",
+        "supply_drop",
+        "crate_tools",
+        "crate_normal",
+        "crate_normal_2"
+      ],
+      "LootContainer Spawn Chance 1-100": 25.0
+    },
+    "2892142846": {
+      "Magazine Display Name": "Extended Magazine 50%",
+      "Ammo Multiplier 1.0 = default Gun": 2.0,
+      "Can Spawn In LootContainer types": [
+        "crate_basic",
+        "codelockedhackablecrate",
+        "codelockedhackablecrate_oilrig",
+        "crate_elite",
+        "supply_drop",
+        "crate_tools",
+        "crate_normal",
+        "crate_normal_2"
+      ],
+      "LootContainer Spawn Chance 1-100": 15.0
+    },
+    "2892142705": {
+      "Magazine Display Name": "Extended Magazine 100%",
+      "Ammo Multiplier 1.0 = default Gun": 3.0,
+      "Can Spawn In LootContainer types": [
+        "codelockedhackablecrate",
+        "codelockedhackablecrate_oilrig",
+        "crate_elite"
+      ],
+      "LootContainer Spawn Chance 1-100": 25.0
+    }
+  },
+  "Version": {
+    "Major": 1,
+    "Minor": 1,
+    "Patch": 5
+  }
+}
