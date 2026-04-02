@@ -2,36 +2,33 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Customizable Magazines", "Razor", "1.1.6-fixed")]
+    [Info("Customizable Magazines", "Razor", "1.2.0")]
     [Description("Change the Magazines Around.")]
     public class CustomizableMagazines : RustPlugin
     {
         [PluginReference] private Plugin BetterLoot;
+
         #region Init/Unloading
+        private const float VanillaExtendedMultiplier = 1.25f;
+        private const string MagazineUse = "customizablemagazines.admin";
+
         private bool debug = false;
         private static CustomizableMagazines Instance;
         private ItemModMagazine _itemModMagazine;
-        private const string MagazineUse = "customizablemagazines.admin";
 
         private void Init()
         {
             Instance = this;
             permission.RegisterPermission(MagazineUse, this);
 
-            if (configData.mags.Count <= 0)
-            {
-                configData.mags.Add(2892143123, new customMagazines("Extended Magazine 15%", 1.5f, 15f, new List<string> { "crate_basic", "crate_normal", "crate_normal_2" }));
-                configData.mags.Add(2892142979, new customMagazines("Extended Magazine 30%", 1.75f, 30f, new List<string> { "crate_basic", "crate_normal", "crate_normal_2" }));
-                configData.mags.Add(2892142846, new customMagazines("Extended Magazine 50%", 2.0f, 50f, new List<string> { "crate_basic", "crate_normal", "crate_normal_2" }));
-                configData.mags.Add(2892142705, new customMagazines("Extended Magazine 100%", 3.0f, 100f, new List<string> { "crate_basic", "crate_normal", "crate_normal_2" }));
-                SaveConfig();
-            }
+            EnsureDefaultMagazineConfig();
         }
 
         private void OnServerInitialized()
@@ -45,9 +42,7 @@ namespace Oxide.Plugins
 
             _itemModMagazine = magazineItemDef.gameObject.GetComponent<ItemModMagazine>();
             if (_itemModMagazine == null)
-            {
                 _itemModMagazine = magazineItemDef.gameObject.AddComponent<ItemModMagazine>();
-            }
 
             AddToItemDefinition(magazineItemDef, _itemModMagazine);
 
@@ -115,8 +110,6 @@ namespace Oxide.Plugins
 
         private void OnLootSpawn(LootContainer container)
         {
-            // On BetterLoot servers this hook may be short-circuited by BetterLoot returning non-null,
-            // so do not rely on it there. Use OnItemAddedToContainer instead.
             if (BetterLoot != null)
                 return;
 
@@ -131,7 +124,6 @@ namespace Oxide.Plugins
             if (item == null || item.info == null)
                 return;
 
-            // Ignore the item we inject ourselves.
             if (item.info.itemid == 2005491391)
                 return;
 
@@ -267,7 +259,10 @@ namespace Oxide.Plugins
                 return;
 
             customMagazines magconfig = Instance.configData.mags[configName];
-            mag.magazineCapacity.scalar = magconfig.totalAmmo;
+            float extraCapacity = Mathf.Max(0f, magconfig.extraCapacityOverVanillaExtended);
+            float finalScalar = VanillaExtendedMultiplier + extraCapacity;
+
+            mag.magazineCapacity.scalar = finalScalar;
             mag.skinID = configName;
             item.skin = configName;
             mag.name = magconfig.displayName;
@@ -283,8 +278,7 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Magazine Display Name")]
             public string displayName;
 
-            [JsonProperty(PropertyName = "Ammo Multiplier 1.0 = default Gun")]
-            public float totalAmmo;
+            public float extraCapacityOverVanillaExtended;
 
             [JsonProperty(PropertyName = "Can Spawn In LootContainer types")]
             public List<string> LootContainers;
@@ -292,10 +286,12 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "LootContainer Spawn Chance 1-100")]
             public float SpawnChance;
 
-            public customMagazines(string displayName, float totalAmmo, float spawnChance, List<string> lootContainers)
+            public customMagazines() { }
+
+            public customMagazines(string displayName, float extraCapacityOverVanillaExtended, float spawnChance, List<string> lootContainers)
             {
                 this.displayName = displayName;
-                this.totalAmmo = totalAmmo;
+                this.extraCapacityOverVanillaExtended = extraCapacityOverVanillaExtended;
                 this.LootContainers = lootContainers ?? new List<string>();
                 this.SpawnChance = spawnChance;
             }
@@ -322,7 +318,7 @@ namespace Oxide.Plugins
             public VersionNumber Version { get; set; }
 
             [JsonProperty(PropertyName = "Last Breaking Change")]
-            public VersionNumber LastBreakingChange { get; set; } = new VersionNumber(1, 1, 6);
+            public VersionNumber LastBreakingChange { get; set; } = new VersionNumber(1, 2, 0);
         }
         #endregion
 
@@ -336,13 +332,16 @@ namespace Oxide.Plugins
 
             try
             {
-                configData = Config.ReadObject<ConfigData>();
+                var rawConfig = Config.ReadObject<JObject>();
+                rawConfig = MigrateConfig(rawConfig);
+                configData = ParseConfigData(rawConfig);
+
                 if (configData == null)
                     LoadDefaultConfig();
             }
-            catch
+            catch (Exception ex)
             {
-                PrintError("Your configuration file is invalid");
+                PrintError($"Your configuration file is invalid: {ex.Message}");
                 UpdateConfig();
                 return;
             }
@@ -350,17 +349,21 @@ namespace Oxide.Plugins
             if (configData.Version == default(VersionNumber))
                 configData.Version = Version;
 
+            EnsureDefaultMagazineConfig();
             UpdateConfigVersion();
             SaveConfig();
         }
 
         protected override void LoadDefaultConfig()
         {
-            configData = new ConfigData();
+            configData = CreateDefaultConfig();
             configData.Version = Version;
         }
 
-        protected override void SaveConfig() => Config.WriteObject(configData, true);
+        protected override void SaveConfig()
+        {
+            Config.WriteObject(BuildConfigObject(configData), true);
+        }
 
         private void UpdateConfig()
         {
@@ -371,7 +374,338 @@ namespace Oxide.Plugins
             PrintWarning("Config update completed!");
         }
 
+        private ConfigData ParseConfigData(JObject rawConfig)
+        {
+            if (rawConfig == null)
+                return CreateDefaultConfig();
+
+            var result = new ConfigData
+            {
+                settings = rawConfig["Settings"]?.ToObject<ConfigData.Settings>() ?? new ConfigData.Settings(),
+                Version = rawConfig["Version"]?.ToObject<VersionNumber>() ?? Version,
+                LastBreakingChange = rawConfig["Last Breaking Change"]?.ToObject<VersionNumber>() ?? new VersionNumber(1, 2, 0),
+                mags = new Dictionary<ulong, customMagazines>()
+            };
+
+            var magsObject = rawConfig["Magazine settings"] as JObject;
+            if (magsObject == null)
+                return result;
+
+            foreach (var property in magsObject.Properties())
+            {
+                if (!(property.Value is JObject magObject))
+                    continue;
+
+                if (!ulong.TryParse(property.Name, out var skinId))
+                    continue;
+
+                string displayName = magObject.Value<string>("Magazine Display Name") ?? "Extended Magazine";
+                float extraValue = ReadExtraCapacityValue(magObject);
+                List<string> lootContainers = magObject["Can Spawn In LootContainer types"]?.ToObject<List<string>>() ?? new List<string>();
+                float spawnChance = magObject.Value<float?>("LootContainer Spawn Chance 1-100") ?? 0f;
+
+                result.mags[skinId] = new customMagazines(displayName, extraValue, spawnChance, lootContainers);
+            }
+
+            return result;
+        }
+
+        private JObject BuildConfigObject(ConfigData data)
+        {
+            var root = new JObject
+            {
+                ["Settings"] = JObject.FromObject(data?.settings ?? new ConfigData.Settings())
+            };
+
+            var magsObject = new JObject();
+            if (data?.mags != null)
+            {
+                foreach (var entry in data.mags)
+                {
+                    var mag = entry.Value ?? new customMagazines();
+                    var magObject = new JObject
+                    {
+                        ["Magazine Display Name"] = mag.displayName ?? string.Empty,
+                        [GetExtraCapacityPropertyName(entry.Key, mag)] = mag.extraCapacityOverVanillaExtended,
+                        ["Can Spawn In LootContainer types"] = JArray.FromObject(mag.LootContainers ?? new List<string>()),
+                        ["LootContainer Spawn Chance 1-100"] = mag.SpawnChance
+                    };
+
+                    magsObject[entry.Key.ToString()] = magObject;
+                }
+            }
+
+            root["Magazine settings"] = magsObject;
+            root["Version"] = JToken.FromObject(data?.Version ?? Version);
+            root["Last Breaking Change"] = JToken.FromObject(data?.LastBreakingChange ?? new VersionNumber(1, 2, 0));
+            return root;
+        }
+
+        private float ReadExtraCapacityValue(JObject magObject)
+        {
+            if (magObject == null)
+                return 0f;
+
+            if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.15 = +15%)", out var extra15))
+                return extra15.Value<float>();
+
+            if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.30 = +30%)", out var extra30))
+                return extra30.Value<float>();
+
+            if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.50 = +50%)", out var extra50))
+                return extra50.Value<float>();
+
+            if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (1.0 = +100%)", out var extra100))
+                return extra100.Value<float>();
+
+            if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag", out var genericExtra))
+                return genericExtra.Value<float>();
+
+            if (magObject.TryGetValue("Ammo Multiplier 1.0 = default Gun", out var legacyScalar))
+            {
+                float legacyValue = legacyScalar.Value<float>();
+                return legacyValue > VanillaExtendedMultiplier ? legacyValue - VanillaExtendedMultiplier : legacyValue;
+            }
+
+            if (magObject.TryGetValue("extraCapacityOverVanillaExtended", out var rawFieldExtra))
+                return rawFieldExtra.Value<float>();
+
+            return 0f;
+        }
+
+        private string GetExtraCapacityPropertyName(ulong skinId, customMagazines mag)
+        {
+            float value = mag != null ? mag.extraCapacityOverVanillaExtended : 0f;
+            return GetExtraCapacityPropertyName(skinId, value);
+        }
+
+        private JObject BuildMagazineConfigEntry(ulong skinId, string displayName, float extraValue, List<string> lootContainers, float spawnChance)
+        {
+            return new JObject
+            {
+                ["Magazine Display Name"] = displayName ?? string.Empty,
+                [GetExtraCapacityPropertyName(skinId, extraValue)] = extraValue,
+                ["Can Spawn In LootContainer types"] = JArray.FromObject(lootContainers ?? new List<string>()),
+                ["LootContainer Spawn Chance 1-100"] = spawnChance
+            };
+        }
+
+        private string GetExtraCapacityPropertyName(ulong skinId, float extraValue)
+        {
+            switch (skinId)
+            {
+                case 2892143123: return "Extra Capacity Over Vanilla Extended Mag (0.15 = +15%)";
+                case 2892142979: return "Extra Capacity Over Vanilla Extended Mag (0.30 = +30%)";
+                case 2892142846: return "Extra Capacity Over Vanilla Extended Mag (0.50 = +50%)";
+                case 2892142705: return "Extra Capacity Over Vanilla Extended Mag (1.0 = +100%)";
+            }
+
+            return $"Extra Capacity Over Vanilla Extended Mag ({extraValue:0.##} = +{Mathf.RoundToInt(extraValue * 100f)}%)";
+        }
+
         private void UpdateConfigVersion() => configData.Version = Version;
+
+        private void EnsureDefaultMagazineConfig()
+        {
+            if (configData == null)
+                configData = CreateDefaultConfig();
+
+            if (configData.settings == null)
+                configData.settings = new ConfigData.Settings();
+
+            if (configData.mags == null || configData.mags.Count == 0)
+                configData.mags = CreateDefaultMags();
+        }
+
+        private ConfigData CreateDefaultConfig()
+        {
+            return new ConfigData
+            {
+                settings = new ConfigData.Settings(),
+                mags = CreateDefaultMags(),
+                Version = Version,
+                LastBreakingChange = new VersionNumber(1, 2, 0)
+            };
+        }
+
+        private Dictionary<ulong, customMagazines> CreateDefaultMags()
+        {
+            return new Dictionary<ulong, customMagazines>
+            {
+                [2892143123] = new customMagazines(
+                    "Extended Magazine 15%",
+                    0.15f,
+                    50f,
+                    new List<string> { "crate_basic", "crate_tools", "crate_normal", "crate_normal_2" }),
+                [2892142979] = new customMagazines(
+                    "Extended Magazine 30%",
+                    0.30f,
+                    25f,
+                    new List<string> { "crate_basic", "supply_drop", "crate_tools", "crate_normal", "crate_normal_2" }),
+                [2892142846] = new customMagazines(
+                    "Extended Magazine 50%",
+                    0.50f,
+                    15f,
+                    new List<string> { "codelockedhackablecrate", "codelockedhackablecrate_oilrig", "crate_elite" }),
+                [2892142705] = new customMagazines(
+                    "Extended Magazine 100%",
+                    1.0f,
+                    25f,
+                    new List<string> { "codelockedhackablecrate", "codelockedhackablecrate_oilrig", "crate_elite" })
+            };
+        }
+
+        private JObject BuildMagazineSettingsObject(Dictionary<ulong, customMagazines> mags)
+        {
+            var magsObject = new JObject();
+            if (mags == null)
+                return magsObject;
+
+            foreach (var entry in mags)
+            {
+                var mag = entry.Value ?? new customMagazines();
+                magsObject[entry.Key.ToString()] = BuildMagazineConfigEntry(entry.Key, mag.displayName, mag.extraCapacityOverVanillaExtended, mag.LootContainers, mag.SpawnChance);
+            }
+
+            return magsObject;
+        }
+
+        private JObject MigrateConfig(JObject rawConfig)
+        {
+            if (rawConfig == null || !rawConfig.HasValues)
+                return JObject.FromObject(CreateDefaultConfig());
+
+            bool changed = false;
+            var defaultMags = CreateDefaultMags();
+
+            if (rawConfig["Settings"] == null)
+            {
+                rawConfig["Settings"] = JObject.FromObject(new ConfigData.Settings());
+                changed = true;
+            }
+
+            if (!(rawConfig["Magazine settings"] is JObject magsObject) || !magsObject.Properties().Any())
+            {
+                rawConfig["Magazine settings"] = BuildMagazineSettingsObject(defaultMags);
+                rawConfig["Last Breaking Change"] = JToken.FromObject(new VersionNumber(1, 2, 0));
+                changed = true;
+            }
+            else
+            {
+                foreach (var property in magsObject.Properties().ToList())
+                {
+                    if (!(property.Value is JObject magObject))
+                        continue;
+
+                    ulong skinId;
+                    ulong.TryParse(property.Name, out skinId);
+                    customMagazines defaultMag;
+                    bool hasDefault = defaultMags.TryGetValue(skinId, out defaultMag);
+
+                    float extraValue = 0f;
+                    bool convertedLegacyScalar = false;
+
+                    if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.15 = +15%)", out var newExtraToken))
+                    {
+                        extraValue = newExtraToken.Value<float>();
+                    }
+                    else if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.30 = +30%)", out var altNewExtraToken))
+                    {
+                        extraValue = altNewExtraToken.Value<float>();
+                        changed = true;
+                    }
+                    else if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (0.50 = +50%)", out var altNewExtraToken2))
+                    {
+                        extraValue = altNewExtraToken2.Value<float>();
+                        changed = true;
+                    }
+                    else if (magObject.TryGetValue("Extra Capacity Over Vanilla Extended Mag (1.0 = +100%)", out var altNewExtraToken3))
+                    {
+                        extraValue = altNewExtraToken3.Value<float>();
+                        changed = true;
+                    }
+                    else if (magObject.TryGetValue("Ammo Multiplier 1.0 = default Gun", out var legacyScalarToken))
+                    {
+                        float legacyValue = legacyScalarToken.Value<float>();
+                        extraValue = legacyValue > VanillaExtendedMultiplier ? legacyValue - VanillaExtendedMultiplier : legacyValue;
+                        convertedLegacyScalar = true;
+                        changed = true;
+                    }
+
+                    string displayName = magObject.Value<string>("Magazine Display Name") ?? (hasDefault ? defaultMag.displayName : "Extended Magazine");
+                    float spawnChance = magObject.Value<float?>("LootContainer Spawn Chance 1-100") ?? (hasDefault ? defaultMag.SpawnChance : 0f);
+                    var lootContainers = magObject["Can Spawn In LootContainer types"]?.ToObject<List<string>>() ?? (hasDefault ? new List<string>(defaultMag.LootContainers) : new List<string>());
+
+                    if (hasDefault && LooksLikeOldDefault(skinId, displayName, magObject, lootContainers, spawnChance))
+                    {
+                        magsObject[property.Name] = BuildMagazineConfigEntry(skinId, defaultMag.displayName, defaultMag.extraCapacityOverVanillaExtended, defaultMag.LootContainers, defaultMag.SpawnChance);
+                        changed = true;
+                        continue;
+                    }
+
+                    magsObject[property.Name] = BuildMagazineConfigEntry(skinId, displayName, extraValue, lootContainers, spawnChance);
+                    changed = true;
+
+                    if (convertedLegacyScalar)
+                        changed = true;
+                }
+            }
+
+            rawConfig["Last Breaking Change"] = JToken.FromObject(new VersionNumber(1, 2, 0));
+            if (rawConfig["Version"] == null)
+                rawConfig["Version"] = JToken.FromObject(Version);
+
+            if (changed)
+                Puts("Config migrated to the 1.2.0 extra-capacity format.");
+
+            return rawConfig;
+        }
+
+        private bool LooksLikeOldDefault(ulong skinId, string displayName, JObject magObject, List<string> lootContainers, float spawnChance)
+        {
+            float? legacyScalar = magObject.Value<float?>("Ammo Multiplier 1.0 = default Gun");
+            if (!legacyScalar.HasValue)
+                return false;
+
+            switch (skinId)
+            {
+                case 2892143123:
+                    return displayName == "Extended Magazine 15%"
+                        && Approximately(legacyScalar.Value, 1.5f)
+                        && Approximately(spawnChance, 15f)
+                        && SameContainers(lootContainers, "crate_basic", "crate_normal", "crate_normal_2");
+                case 2892142979:
+                    return displayName == "Extended Magazine 30%"
+                        && Approximately(legacyScalar.Value, 1.75f)
+                        && Approximately(spawnChance, 30f)
+                        && SameContainers(lootContainers, "crate_basic", "crate_normal", "crate_normal_2");
+                case 2892142846:
+                    return displayName == "Extended Magazine 50%"
+                        && Approximately(legacyScalar.Value, 2.0f)
+                        && Approximately(spawnChance, 50f)
+                        && SameContainers(lootContainers, "crate_basic", "crate_normal", "crate_normal_2");
+                case 2892142705:
+                    return displayName == "Extended Magazine 100%"
+                        && Approximately(legacyScalar.Value, 3.0f)
+                        && Approximately(spawnChance, 100f)
+                        && SameContainers(lootContainers, "crate_basic", "crate_normal", "crate_normal_2");
+                default:
+                    return false;
+            }
+        }
+
+        private bool SameContainers(List<string> actual, params string[] expected)
+        {
+            if (actual == null)
+                return false;
+
+            return actual.SequenceEqual(expected, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private bool Approximately(float a, float b)
+        {
+            return Mathf.Abs(a - b) <= 0.0001f;
+        }
         #endregion
 
         #region Commands

@@ -1,145 +1,173 @@
 # 🔫 Customizable Extended Magazines
 
-A fully configurable extended magazine system for **Rust (Oxide/uMod)** that allows you to control magazine sizes, spawn chances, and crate distribution.
+A fully configurable extended magazine system for **Rust (Oxide/uMod)** that allows you to control magazine bonuses, spawn chances, and crate distribution.
 
 ---
 
 ## ✨ Features
 
-- 🔧 Fully configurable magazine bonuses (15%, 30%, 50%, 100% etc.)
-- 📦 Control **which crates** magazines spawn in
-- 🎯 Adjustable **spawn chances per magazine**
-- ⚙️ Easy JSON config editing
-- 🧩 Supports custom crate types
-- 🔁 Auto-generates default config if missing
+* 🔧 Configure magazine bonuses as **extra % over vanilla extended mags**
+* 📦 Control **which crates** magazines spawn in
+* 🎯 Adjustable **spawn chances per magazine**
+* ⚙️ Clean, modern JSON config
+* 🧩 Supports custom crate types
+* 🔁 Automatic config migration from older versions
 
 ---
 
 ## 📦 Installation
 
 1. Download the plugin:
+
    ```
-   CustomizableExtendedMagazines.cs
+   CustomizableMagazines.cs
    ```
 
 2. Place into:
+
    ```
    /oxide/plugins/
    ```
 
 3. Reload plugin:
+
    ```
-   oxide.reload CustomizableExtendedMagazines
+   oxide.reload CustomizableMagazines
    ```
 
 4. Config will generate at:
+
    ```
-   /oxide/config/CustomizableExtendedMagazines.json
+   /oxide/config/CustomizableMagazines.json
    ```
 
 ---
 
 ## ⚙️ Configuration
 
-Example config:
+### Example config
 
 ```json
-"mags": {
+"Magazine settings": {
   "2892143123": {
-    "Name": "Extended Magazine 15%",
-    "Multiplier": 1.5,
-    "Capacity Bonus": 15,
-    "Containers": ["crate_basic", "crate_normal"]
-  },
-  "2892142979": {
-    "Name": "Extended Magazine 30%",
-    "Multiplier": 1.75,
-    "Capacity Bonus": 30,
-    "Containers": ["crate_basic", "crate_normal"]
+    "Magazine Display Name": "Extended Magazine 15%",
+    "Extra Capacity Over Vanilla Extended Mag (0.15 = +15%)": 0.15,
+    "Can Spawn In LootContainer types": [
+      "crate_basic",
+      "crate_tools",
+      "crate_normal",
+      "crate_normal_2"
+    ],
+    "LootContainer Spawn Chance 1-100": 50.0
   }
 }
 ```
 
 ---
 
-### 🧠 Field Breakdown
+## 🧠 How Capacity Works
 
-| Field | Description |
-|------|------------|
-| `Name` | Display name of the magazine |
-| `Multiplier` | Weapon capacity multiplier |
-| `Capacity Bonus` | % increase in ammo |
-| `Containers` | Crates the item can spawn in |
+Rust’s **vanilla extended magazine already provides ~+25% capacity**.
+
+This plugin adds **extra capacity on top of that**.
+
+### Formula
+
+```
+Final Capacity = Base Weapon Capacity × (1.25 + Config Value)
+```
+
+---
+
+### 📊 Examples
+
+| Config Value | Label | Final Total     |
+| ------------ | ----- | --------------- |
+| `0.15`       | 15%   | **+40% total**  |
+| `0.30`       | 30%   | **+55% total**  |
+| `0.50`       | 50%   | **+75% total**  |
+| `1.00`       | 100%  | **+125% total** |
+
+---
+
+### ⚠️ Important
+
+* Config values are **NOT multipliers**
+* They represent **extra % added on top of vanilla extended mags**
+* Example:
+
+  * `0.15` = +15% over vanilla → total becomes +40%
 
 ---
 
 ## 📦 Supported Crates
 
 Common crate types:
-- `crate_basic`
-- `crate_normal`
-- `crate_normal_2`
-- `crate_elite`
-- `crate_tools`
-- `crate_military`
 
-You can add custom containers depending on your server mods.
+* `crate_basic`
+* `crate_normal`
+* `crate_normal_2`
+* `crate_elite`
+* `crate_tools`
+* `crate_military`
+* `supply_drop`
+* `codelockedhackablecrate`
+
+You can add any custom container names used by your server.
 
 ---
 
 ## 🎮 How It Works
 
-- Magazines are injected into loot tables
-- Spawn based on configured containers
-- Apply capacity bonuses when used
-- Fully server-side (no client mods required)
+* Custom magazines are injected into loot containers
+* Spawn chances and locations are configurable
+* When attached, they override the magazine capacity
+* Uses per-skin logic (does not affect vanilla mags)
 
 ---
 
 ## ⚠️ Notes
 
-- If your config doesn’t match the code defaults, **only existing entries will load**
-- New magazines must exist in **both config and code defaults**
-- Restart or reload plugin after config edits
+* The in-game inspect panel may still show **+25%**
+
+  * This is a **Rust UI limitation**
+  * Actual capacity is correctly applied in gameplay
+* Move or reattach magazines to refresh their stats after changes
 
 ---
 
 ## 🛠️ Troubleshooting
 
 ### Magazines not spawning?
-- Check container names match exactly
-- Ensure config is valid JSON
-- Verify plugin loaded successfully:
+
+* Verify container names match exactly
+* Check spawn chance values > 0
+* Reload plugin:
+
   ```
-  oxide.reload CustomizableExtendedMagazines
+  oxide.reload CustomizableMagazines
   ```
 
-### Config not updating?
-- Delete config file and reload plugin to regenerate
+### Config issues?
+
+* Delete config and reload plugin to regenerate
+* Ensure values like `0.15`, `0.30`, etc. are used (not 1.5)
 
 ---
 
 ## 🚀 Future Ideas
 
-- Weighted spawn chances per crate
-- Tier-based magazine drops
-- UI display for bonus stats
-- Integration with loot table plugins
+* Custom UI display for real capacity values
+* Tier-based loot balancing
+* Per-weapon scaling
+* Integration with BetterLoot / LootTable APIs
 
 ---
 
 ## 📌 Credits
 
-- Plugin: Custom Extended Magazines
-- Maintained by: https://github.com/milestorme
-
----
-
-## 💬 Support
-
-If you run into issues or want new features:
-- Open a GitHub issue
-- Or modify the config/code to suit your server
+* Plugin: Customizable Extended Magazines
+* Maintained by: https://github.com/milestorme
 
 ---
 
