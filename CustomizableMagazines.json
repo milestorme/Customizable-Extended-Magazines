@@ -12,7 +12,7 @@
         "crate_normal",
         "crate_normal_2"
       ],
-      "LootContainer Spawn Chance 1-100": 25.0
+      "LootContainer Spawn Chance 1-100": 10.0
     },
     "2892142979": {
       "Magazine Display Name": "Extended Magazine 30%",
@@ -24,7 +24,7 @@
         "crate_normal",
         "crate_normal_2"
       ],
-      "LootContainer Spawn Chance 1-100": 15.0
+      "LootContainer Spawn Chance 1-100": 5.5
     },
     "2892142846": {
       "Magazine Display Name": "Extended Magazine 50%",
@@ -34,7 +34,7 @@
         "codelockedhackablecrate_oilrig",
         "crate_elite"
       ],
-      "LootContainer Spawn Chance 1-100": 25.0
+      "LootContainer Spawn Chance 1-100": 10.0
     },
     "2892142705": {
       "Magazine Display Name": "Extended Magazine 100%",
@@ -44,7 +44,7 @@
         "codelockedhackablecrate_oilrig",
         "crate_elite"
       ],
-      "LootContainer Spawn Chance 1-100": 10.0
+      "LootContainer Spawn Chance 1-100": 5.5
     }
   },
   "Version": {

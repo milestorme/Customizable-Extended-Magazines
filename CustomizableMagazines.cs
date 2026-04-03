@@ -535,22 +535,22 @@ namespace Oxide.Plugins
                 [2892143123] = new customMagazines(
                     "Extended Magazine 15%",
                     0.15f,
-                    50f,
+                    10f,
                     new List<string> { "crate_basic", "crate_tools", "crate_normal", "crate_normal_2" }),
                 [2892142979] = new customMagazines(
                     "Extended Magazine 30%",
                     0.30f,
-                    25f,
+                    5.5f,
                     new List<string> { "crate_basic", "supply_drop", "crate_tools", "crate_normal", "crate_normal_2" }),
                 [2892142846] = new customMagazines(
                     "Extended Magazine 50%",
                     0.50f,
-                    15f,
+                    10f,
                     new List<string> { "codelockedhackablecrate", "codelockedhackablecrate_oilrig", "crate_elite" }),
                 [2892142705] = new customMagazines(
                     "Extended Magazine 100%",
                     1.0f,
-                    25f,
+                    5.5f,
                     new List<string> { "codelockedhackablecrate", "codelockedhackablecrate_oilrig", "crate_elite" })
             };
         }
